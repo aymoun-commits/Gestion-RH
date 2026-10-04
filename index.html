@@ -131,6 +131,14 @@ select.day {
 .field .note { font-size: 13.5px; color: var(--ink-2); }
 .field .note.warn { color: var(--alert-ink); }
 
+.lecture { margin-top: 12px; font-size: 14px; color: var(--ink-2); display: grid; gap: 6px; }
+.lecture:empty { display: none; }
+.lecture p { margin: 0; }
+.lecture .vu { color: var(--ink); }
+.lecture ul { margin: 0; padding: 0 0 0 18px; display: grid; gap: 3px; }
+.lecture li.att { color: var(--alert-ink); }
+.lecture select.day { margin-left: 4px; }
+.fstate .att { color: var(--alert-ink); }
 .msg { margin-top: 12px; font-size: 14.5px; }
 .msg:empty { display: none; }
 .msg.err { color: var(--manque-ink); }
@@ -272,13 +280,14 @@ table.board { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
     <div class="panel-grid">
       <div class="card">
         <h2>Combien d'intérimaires commander</h2>
-        <p class="lead">Un export Protime par jour, du lundi au vendredi. Le manque calculé est la commande à passer à l'agence.</p>
+        <p class="lead">Exports Protime du jour ou de la semaine, fixes et intérims ensemble. Le manque calculé est la commande à passer à l'agence.</p>
         <label class="drop" data-drop="interim">
           <input type="file" accept=".xlsx,.xlsm" multiple data-input="interim">
           <strong>Déposer les plannings</strong>
-          <span>ou cliquer pour choisir, jusqu'à 5 fichiers .xlsm / .xlsx</span>
+          <span>ou cliquer pour choisir, un ou plusieurs fichiers .xlsm / .xlsx</span>
         </label>
         <ul class="files" data-list="interim"></ul>
+        <div class="lecture" data-lecture="interim"></div>
         <div class="msg" data-msg="interim" role="status"></div>
         <div class="actions"><button class="btn btn-go" data-go="interim" disabled>Calculer les besoins</button></div>
         <details class="rules" data-rules="planning"></details>
@@ -298,9 +307,10 @@ table.board { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
         <label class="drop" data-drop="verif">
           <input type="file" accept=".xlsx,.xlsm" multiple data-input="verif">
           <strong>Déposer les plannings</strong>
-          <span>ou cliquer pour choisir, jusqu'à 5 fichiers .xlsm / .xlsx</span>
+          <span>ou cliquer pour choisir, un ou plusieurs fichiers .xlsm / .xlsx</span>
         </label>
         <ul class="files" data-list="verif"></ul>
+        <div class="lecture" data-lecture="verif"></div>
         <div class="msg" data-msg="verif" role="status"></div>
         <div class="actions"><button class="btn btn-go" data-go="verif" disabled>Vérifier les effectifs</button></div>
         <details class="rules" data-rules="planning"></details>
@@ -318,13 +328,15 @@ table.board { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
         <h2>Feuilles de présence du jour</h2>
         <p class="lead">Une feuille par shift pour l'équipe tournante, la salle de découpe, l'emballage et la sortie frigo, plus les listes brutes Équipe Matin et Équipe Après-midi.</p>
         <label class="drop" data-drop="fp">
-          <input type="file" accept=".xlsx,.xlsm" data-input="fp">
+          <input type="file" accept=".xlsx,.xlsm" multiple data-input="fp">
           <strong>Déposer le planning</strong>
-          <span>ou cliquer pour choisir un fichier .xlsm / .xlsx</span>
+          <span>ou cliquer pour choisir, un ou plusieurs fichiers .xlsm / .xlsx</span>
         </label>
         <ul class="files" data-list="fp"></ul>
+        <div class="lecture" data-lecture="fp"></div>
         <div class="field">
-          <label for="fp-date">Date du planning</label>
+          <label for="fp-date" id="fp-date-label">Date du planning</label>
+          <select class="day" id="fp-jour" aria-labelledby="fp-date-label" hidden></select>
           <input type="date" id="fp-date">
           <span class="note" id="fp-date-note">Elle s'imprime en haut de chaque feuille et nomme les fichiers.</span>
         </div>
@@ -345,9 +357,9 @@ table.board { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
         <h2>Prime accrochage de la semaine</h2>
         <p class="lead">Présents de l'équipe tournante jour par jour. Décoche les personnes qui ne touchent pas la prime : le choix est retenu d'une semaine à l'autre.</p>
         <label class="drop" data-drop="prime">
-          <input type="file" accept=".xlsx,.xlsm" data-input="prime">
+          <input type="file" accept=".xlsx,.xlsm" multiple data-input="prime">
           <strong>Déposer le planning de la semaine</strong>
-          <span>ou cliquer pour choisir le fichier Protime .xlsm</span>
+          <span>ou cliquer pour choisir, un ou plusieurs fichiers .xlsm / .xlsx</span>
         </label>
         <ul class="files" data-list="prime"></ul>
         <div class="msg" data-msg="prime" role="status"></div>
@@ -355,7 +367,7 @@ table.board { border-collapse: separate; border-spacing: 0; width: 100%; min-wid
         <details class="rules" data-rules="prime"></details>
       </div>
       <div class="card" data-out="prime" aria-live="polite">
-        <div class="empty"><strong>Aucune semaine chargée</strong>Dépose le planning Protime de la semaine : les dates sont lues dans la colonne Datum.</div>
+        <div class="empty"><strong>Aucune semaine chargée</strong>Dépose le planning de la semaine : les dates sont lues dans la colonne Datum.</div>
       </div>
     </div>
   </section>
@@ -446,16 +458,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     [5, 30, 'Matin'], [6, 0, 'Matin'], [6, 30, 'Matin'], [8, 0, 'Matin'],
     [12, 1, 'Après-midi'], [13, 30, 'Après-midi'], [13, 50, 'Après-midi'], [14, 41, 'Après-midi'],
   ];
-  const SECTEUR_MAP = [
-    ['MK-Holploeg', 'Équipe Tournante'],
-    ['MK-Sorteerfrigo A', 'Frigo'],
-    ['MK-Sorteerfrigo B', 'Frigo'],
-    ['MK-Sorteerzaal A', 'Salle de Découpe'],
-    ['MK-Sorteerzaal B', 'Salle de Découpe'],
-    ['MK-Verpakking A', 'Emballage'],
-    ['MK-Verpakking B', 'Emballage'],
+  // Secteur reconnu a un mot de l'Afdeling (casse et accents ignores). Les noms Protime
+  // (neerlandais) d'abord ; les mots francais seulement pour un libelle hors code « MK- »,
+  // pour qu'un autre departement Protime contenant « frigo » ne soit pas compte par erreur.
+  const SECTEUR_MOTS = [
+    [['holploeg'], 'Équipe Tournante'],
+    [['sorteerfrigo'], 'Frigo'],
+    [['sorteerzaal'], 'Salle de Découpe'],
+    [['verpakking'], 'Emballage'],
   ];
-  const IGNORED_PREFIXES = ['MK-Verantwoordelijken'];
+  const SECTEUR_MOTS_FR = [
+    [['tournant'], 'Équipe Tournante'],
+    [['frigo'], 'Frigo'],
+    [['salle de dec', 'decoupe'], 'Salle de Découpe'],
+    [['emballage'], 'Emballage'],
+  ];
+  const IGNORED_MOTS = ['verantwoordelijken', 'responsable'];
   const KEY_REPLACEABLE_SECTEURS = new Set(['Emballage', 'Frigo']);
   const TARGETS = [
     ['Équipe Tournante', 'Matin', 7],
@@ -493,6 +511,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     'VERMEEREN SEBASTIEN', 'RUBRECHT NICOLAS', 'GUEHAM AKIM', 'VILAIN FLORA', 'GRUSON SONIA',
     'VANDAMME KIMBERLEY', 'BELLEVERGUE CLAUDINE', 'CARETTE CINDY', 'DESCAMPS MAXIME', 'HANRIO MAXIME',
     'VANTEUX VALENTIN', "D'HAENE JULIANA", 'DERONNE FREDERIC',
+    'DE WIEST ERIC',   // nettoyage exterieur, hors departement production
   ];
   const FP_MOTS_CLES_EQUIPE = ['sorteerzaal', 'holploeg', 'tournante'];
   // seuls ces 4 secteurs ont une feuille : equipe tournante, salle de decoupe, emballage, sortie frigo
@@ -622,6 +641,187 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return XLSX.read(data, { type: 'array', cellNF: true, cellDates: false });
   }
 
+  // ================= Lecture souple des plannings =================
+  // Un planning = n'importe quel onglet qui contient une ligne d'en-tete avec au moins
+  // un nom, un horaire et un secteur. L'ordre des colonnes, leur langue, la ligne ou
+  // commence le tableau, le nombre d'onglets et le nom du fichier n'ont plus d'importance.
+  // Le jour de chaque ligne vient de la colonne Datum ; a defaut du nom de l'onglet
+  // (Lundi, Maandag...), a defaut du nom du fichier, a defaut d'un choix manuel.
+  const hkey = s => String(s).normalize('NFKD').replace(/\p{Mn}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const COLONNES = {            // alias par ordre de preference, compares sans casse, accents ni espaces
+    nr: ['werknemersnr', 'werknemernr', 'personeelsnr', 'matricule', 'numero', 'nr', 'id'],
+    naam: ['naam', 'nom', 'name', 'nomprenom', 'nometprenom', 'werknemersnaam', 'medewerker', 'employe', 'personne'],
+    kerntijd: ['kerntijd', 'horaire', 'heure', 'heuredebut', 'debut', 'starttijd', 'start', 'begin'],
+    afwcode: ['afwcode', 'codeabsence', 'afwezigheidscode', 'codeafw', 'afwezigheid', 'code', 'absence'],
+    afdeling: ['afdeling', 'secteur', 'departement', 'service', 'afd'],
+    datum: ['datum', 'date', 'jour', 'dag'],
+  };
+  const COLONNES_REQUISES = ['naam', 'kerntijd', 'afdeling'];
+  const LIBELLE_COLONNE = { naam: 'Naam', kerntijd: 'Kerntijd', afdeling: 'Afdeling', afwcode: 'AfwCode', datum: 'Datum', nr: 'WerknemersNr' };
+  function trouverEntete(rows) {
+    let best = null;
+    for (let r = 0; r < Math.min(rows.length, 25); r++) {
+      const keys = rows[r].map(c => (c.v === null || c.v === undefined || typeof c.v === 'object') ? '' : hkey(c.v));
+      const col = {}, pris = new Set();
+      for (const [champ, alias] of Object.entries(COLONNES)) {
+        for (const a of alias) {
+          const i = keys.findIndex((k, j) => k === a && !pris.has(j));
+          if (i >= 0) { col[champ] = i; pris.add(i); break; }
+        }
+      }
+      if (!COLONNES_REQUISES.every(c => c in col)) continue;
+      if (!best || Object.keys(col).length > Object.keys(best.col).length) best = { r, col };
+    }
+    return best;
+  }
+  const propre = v => (typeof v === 'string' ? (v.trim() === '' ? null : v.trim()) : (v === undefined ? null : v));
+  const hhmm = t => `${pad(t.h, 2)}:${pad(t.m, 2)}`;
+  // horaire : heure Excel, date+heure, nombre decimal ou texte « 6:30 », « 06h30 », « 6.30 »
+  function normHeure(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'object') {
+      if (v.kind === 'time') return v;
+      if (v.kind === 'datetime') return { kind: 'time', h: v.h, m: v.m, s: v.s, us: v.us };
+      return null;
+    }
+    if (typeof v === 'number') {
+      if (v >= 0 && v < 1) { const t = fromExcel(v, false, false); return t.kind === 'time' ? t : null; }
+      return null;
+    }
+    const m = String(v).trim().match(/^(\d{1,2})\s*[:hH.]\s*(\d{2})(?:\s*:\s*(\d{2}))?$/);
+    if (m && +m[1] < 24 && +m[2] < 60) return { kind: 'time', h: +m[1], m: +m[2], s: m[3] ? +m[3] : 0, us: 0 };
+    return null;
+  }
+  // date : date Excel, numero de serie, texte « 2026-10-05 », « 05/10/2026 », « 5.10.26 »
+  function normDate(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'object' && v.kind === 'datetime') return Date.UTC(v.Y, v.M - 1, v.D);
+    if (typeof v === 'number' && v > 59 && v < 2958466) {
+      const d = fromExcel(Math.floor(v), false, false);
+      return d.kind === 'datetime' ? Date.UTC(d.Y, d.M - 1, d.D) : null;
+    }
+    if (typeof v === 'string') {
+      let m = v.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+      m = v.trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})(?!\d)/);
+      if (m) return Date.UTC(m[3].length === 2 ? 2000 + +m[3] : +m[3], +m[2] - 1, +m[1]);
+    }
+    return null;
+  }
+  const JOURS_SEMAINE = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
+  const jourDe = ms => JOURS_SEMAINE[(new Date(ms).getUTCDay() + 6) % 7];
+  const lundiDe = ms => ms - ((new Date(ms).getUTCDay() + 6) % 7) * 86400000;
+  function jourDuTexte(v) {
+    if (typeof v !== 'string') return null;
+    const low = hkey(v);
+    for (const [alias, jour] of JOUR_ALIASES) if (low === alias) return jour;
+    for (const [alias, jour] of JOUR_ALIASES) if (new RegExp('(?<![a-z])' + alias + '(?![a-z])').test(plain(v))) return jour;
+    return null;
+  }
+  // horodatage d'export dans le nom (Protime : « Planning - 2026-10-03T142130.943 »)
+  function exportStamp(filename) {
+    const m = String(filename || '').match(/(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})?/);
+    return m ? { ms: Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)), iso: `${m[1]}-${m[2]}-${m[3]}`, heure: `${m[4]}:${m[5]}` } : null;
+  }
+  function lirePlanning(XLSX, wb, filename) {
+    const onglets = [], lignes = [], ignores = [];
+    for (const nom of wb.SheetNames) {
+      const rows = sheetRows(XLSX, wb, wb.Sheets[nom]);
+      const plein = rows.some(r => r.some(c => c.v !== null && c.v !== ''));
+      if (!plein) continue;
+      const h = trouverEntete(rows);
+      if (!h) { ignores.push(nom); continue; }
+      const jourOnglet = jourDuTexte(nom);
+      const lire = (row, champ) => (h.col[champ] === undefined || !row[h.col[champ]]) ? null : propre(row[h.col[champ]].v);
+      let n = 0, sansJour = 0;
+      for (let i = h.r + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const naam = lire(row, 'naam');
+        if (!naam) continue;
+        const kerntijdRaw = lire(row, 'kerntijd'), datumRaw = lire(row, 'datum');
+        const day = normDate(datumRaw);
+        const jour = day !== null ? jourDe(day) : (jourDuTexte(datumRaw) || jourOnglet);
+        if (!jour) sansJour++;
+        lignes.push({
+          nr: lire(row, 'nr'), naam, kerntijdRaw, kerntijd: normHeure(kerntijdRaw),
+          afwcode: lire(row, 'afwcode'), afdeling: lire(row, 'afdeling'),
+          day, jour, onglet: nom, fichier: filename,
+        });
+        n++;
+      }
+      onglets.push({ nom, lignes: n, sansJour, colonnes: h.col,
+        manquantes: ['afwcode', 'datum'].filter(c => !(c in h.col)).map(c => LIBELLE_COLONNE[c]) });
+    }
+    if (!onglets.length) {
+      throw new Error('Aucun onglet ne contient de planning : il faut au moins les colonnes Naam (nom), Kerntijd (horaire) et Afdeling (secteur).');
+    }
+    const days = [...new Set(lignes.filter(l => l.day !== null).map(l => l.day))].sort((a, b) => a - b);
+    return { fichier: filename, onglets, lignes, ignores, days, stamp: exportStamp(filename),
+      sansJour: lignes.filter(l => !l.jour).length };
+  }
+
+  // Assemble plusieurs lectures en une semaine : fusion par jour, doublons retires.
+  // lectures : [{ lecture, jourManuel }] dans l'ordre de depot. semaineVoulue : lundi (ms) ou null.
+  function assembler(lectures, semaineVoulue) {
+    const avis = [];
+    // semaine : celle qui a le plus de lignes datees, sauf choix explicite
+    const parSemaine = new Map();
+    for (const { lecture } of lectures) for (const l of lecture.lignes) {
+      if (l.day === null) continue;
+      const lu = lundiDe(l.day);
+      parSemaine.set(lu, (parSemaine.get(lu) || 0) + 1);
+    }
+    const semaines = [...parSemaine].sort((a, b) => a[0] - b[0]).map(([lundi, n]) => ({ lundi, n }));
+    let semaine = null;
+    if (semaines.length) {
+      semaine = semaines.find(w => w.lundi === semaineVoulue)
+        || semaines.slice().sort((a, b) => b.n - a.n || a.lundi - b.lundi)[0];
+      semaine = semaine.lundi;
+    }
+    // le fichier le plus recent l'emporte quand deux fichiers decrivent la meme personne le meme jour
+    const ordre = lectures.map((x, i) => ({ ...x, i }))
+      .sort((a, b) => ((a.lecture.stamp ? a.lecture.stamp.ms : -Infinity) - (b.lecture.stamp ? b.lecture.stamp.ms : -Infinity)) || a.i - b.i);
+    let autreSemaine = 0, weekEnd = 0, doublons = 0;
+    const conflits = new Set();
+    const acc = new Map();            // cle personne|jour -> { fichier, lignes, sig }
+    for (const { lecture, jourManuel, i } of ordre) {
+      const local = new Map();
+      for (const [seq, l] of lecture.lignes.entries()) {
+        let jour = l.jour;
+        if (l.day !== null) {
+          if (lundiDe(l.day) !== semaine) { autreSemaine++; continue; }
+        } else if (!jour) jour = jourManuel || null;
+        if (!jour) continue;
+        if (!JOURS.includes(jour)) { weekEnd++; continue; }
+        const cle = (l.nr !== null ? 'nr:' + pyStr(l.nr) : 'nom:' + [...nameTokens(l.naam)].sort().join(' ')) + '|' + jour;
+        if (!local.has(cle)) local.set(cle, []);
+        local.get(cle).push({ ...l, jour, ordre: i * 1e7 + seq });
+      }
+      const sig = ls => ls.map(l => [pyStr(l.afdeling), l.kerntijd ? hhmm(l.kerntijd) : pyStr(l.kerntijdRaw), pyStr(l.afwcode)].join('~')).sort().join('#');
+      for (const [cle, ls] of local) {
+        const avant = acc.get(cle);
+        if (avant) {
+          if (avant.sig === sig(ls)) { doublons += ls.length; continue; }
+          conflits.add(pyStr(ls[0].naam));
+        }
+        acc.set(cle, { lignes: ls, sig: sig(ls) });
+      }
+    }
+    const parJour = {};
+    for (const { lignes } of acc.values()) for (const l of lignes) (parJour[l.jour] = parJour[l.jour] || []).push(l);
+    Object.values(parJour).forEach(ls => ls.sort((a, b) => a.ordre - b.ordre));   // ordre de depot, puis ordre du fichier
+    const jours = JOURS.filter(j => parJour[j] && parJour[j].length);
+    if (autreSemaine) avis.push(`${autreSemaine} ligne${autreSemaine > 1 ? 's' : ''} d'une autre semaine mise${autreSemaine > 1 ? 's' : ''} de côté.`);
+    if (weekEnd) avis.push(`${weekEnd} ligne${weekEnd > 1 ? 's' : ''} du week-end ignorée${weekEnd > 1 ? 's' : ''}.`);
+    if (doublons) avis.push(`${doublons} ligne${doublons > 1 ? 's' : ''} en double entre fichiers comptée${doublons > 1 ? 's' : ''} une seule fois.`);
+    if (conflits.size) {
+      const noms = [...conflits].sort(pyCompare);
+      avis.push(`${noms.length} personne${noms.length > 1 ? 's' : ''} décrite${noms.length > 1 ? 's' : ''} différemment dans deux fichiers, version du fichier le plus récent gardée : ${noms.slice(0, 6).join(', ')}${noms.length > 6 ? '…' : ''}.`);
+    }
+    return { semaines, semaine, parJour, jours, avis,
+      lignes: jours.reduce((s, j) => s + parJour[j].length, 0) };
+  }
+
   // ================= interim-besoins : core.py =================
   function nameTokens(name) {
     let s = (name === null || name === undefined || name === '' || name === 0 || name === false) ? '' : pyStr(name);
@@ -651,11 +851,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     return afdeling;
   }
+  const plain = s => String(s).normalize('NFKD').replace(/\p{Mn}/gu, '').toLowerCase();
+  function secteurIgnore(afdeling) {
+    if (!afdeling) return false;
+    const a = plain(pyStr(afdeling));
+    return IGNORED_MOTS.some(m => a.includes(m));
+  }
   function getSecteur(afdeling) {
     if (!afdeling) return null;
-    const a = pyStr(afdeling);
-    for (const p of IGNORED_PREFIXES) if (a.startsWith(p)) return null;
-    for (const [p, s] of SECTEUR_MAP) if (a.startsWith(p)) return s;
+    const a = plain(pyStr(afdeling));
+    if (IGNORED_MOTS.some(m => a.includes(m))) return null;
+    for (const [mots, s] of SECTEUR_MOTS) if (mots.some(m => a.includes(m))) return s;
+    if (!/^\s*mk-/.test(a)) for (const [mots, s] of SECTEUR_MOTS_FR) if (mots.some(m => a.includes(m))) return s;
     return null;
   }
   function horaireShift(v) {
@@ -686,18 +893,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return [null, false];
   }
   const kstr = (s, sh) => s + '|' + sh;
-  function parsePlanning(XLSX, wb) {
-    const ws = wb.Sheets['Sheet1'];
-    if (!ws) throw new Error("Onglet « Sheet1 » introuvable : ce fichier n'est pas un export Protime.");
-    const rows = sheetRows(XLSX, wb, ws);
+  // lignes : sortie de lirePlanning (une ligne par personne et par jour, deja filtree sur le jour)
+  function parsePlanning(lignes) {
     const presents = {}, keySlots = {}, keysFound = {};
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      const naam = row[2].v, kerntijd = row[3].v, afwcode = row[4].v;
+    const horsHoraire = [], horsSecteur = new Map();
+    for (const l of lignes) {
+      const naam = l.naam, kerntijd = l.kerntijdRaw, afwcode = l.afwcode;
       if (!naam) continue;
-      const afdeling = reaffecter(naam, row[6].v);
+      const afdeling = reaffecter(naam, l.afdeling);
       const secteur = getSecteur(afdeling);
-      const shift = horaireShift(kerntijd);
+      const shift = horaireShift(l.kerntijd);
       const canonical = matchKey(naam);
       // EXTRA vaut absence pour le comptage, meme sans AfwCode ; affiche comme code pour l'alerte
       const effectiveAfwcode = afwcode || (isExtra(naam) ? 'EXTRA' : null);
@@ -709,11 +914,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           continue;
         }
       }
-      if (effectiveAfwcode || !secteur || !shift) continue;
+      if (effectiveAfwcode) continue;
+      // present mais non compte : on le signale au lieu de l'ignorer en silence
+      if (!secteur) {
+        if (afdeling && !secteurIgnore(afdeling)) {
+          const a = pyStr(afdeling);
+          horsSecteur.set(a, (horsSecteur.get(a) || 0) + 1);
+        }
+        continue;
+      }
+      if (!shift) { horsHoraire.push({ naam: pyStr(naam), secteur, horaire: l.kerntijd ? hhmm(l.kerntijd) : (kerntijd === null ? 'vide' : pyStr(kerntijd)) }); continue; }
       presents[kstr(secteur, shift)] = (presents[kstr(secteur, shift)] || 0) + 1;
     }
     const keysMissing = KEY_PERSONS.filter(k => !(k in keysFound));
-    return { presents, keySlots, keysFound, keysMissing };
+    return { presents, keySlots, keysFound, keysMissing, horsHoraire, horsSecteur: [...horsSecteur] };
   }
   function compute(a) {
     const out = {};
@@ -916,36 +1130,18 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     return { buffer: await wb.xlsx.writeBuffer(), calc, jours, alertes, filename };
   }
 
-  // ================= feuilles-presence : lecture facon pandas.read_excel =================
+  // ================= feuilles-presence : lignes normalisees, valeurs vides facon pandas =================
   const PD_NA = new Set(['', '#N/A', '#N/A N/A', '#NA', '-1.#IND', '-1.#QNAN', '-NaN', '-nan', '1.#IND', '1.#QNAN',
     '<NA>', 'N/A', 'NA', 'NULL', 'NaN', 'None', 'n/a', 'nan', 'null']);
-  function pdValue(c) {
-    if (!c || c.v === null || c.v === undefined || c.t === 'e') return null;
-    if (typeof c.v === 'string') return PD_NA.has(c.v) ? null : c.v;
-    return c.v;
+  const pdv = v => (v === null || v === undefined) ? null : (typeof v === 'string' && PD_NA.has(v) ? null : v);
+  function feuillesFrame(lignes) {
+    return lignes.map(l => ({
+      Naam: pdv(l.naam), Kerntijd: l.kerntijd || pdv(l.kerntijdRaw),
+      AfwCode: pdv(l.afwcode), Afdeling: pdv(l.afdeling),
+    }));
   }
-  function readFeuillesFrame(XLSX, wb) {
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows = sheetRows(XLSX, wb, ws);
-    if (!rows.length) throw new Error('Le premier onglet du fichier est vide.');
-    const header = rows[0].map(c => (c.v !== null ? pyStr(c.v) : null));
-    const col = {};
-    for (const name of ['Naam', 'Kerntijd', 'AfwCode', 'Afdeling']) {
-      const idx = header.indexOf(name);
-      if (idx < 0) throw new Error(`Colonne « ${name} » introuvable dans le premier onglet : ce fichier n'est pas un planning Protime.`);
-      col[name] = idx;
-    }
-    const out = [];
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i];
-      if (row.every(c => c.v === null || c.v === '')) continue;
-      out.push({
-        Naam: pdValue(row[col.Naam]), Kerntijd: pdValue(row[col.Kerntijd]),
-        AfwCode: pdValue(row[col.AfwCode]), Afdeling: pdValue(row[col.Afdeling]),
-      });
-    }
-    return out;
-  }
+  // libelle d'Afdeling hors codes Protime (« Salle de découpe »...) : rattache au secteur Protime
+  const FP_DEPUIS_SECTEUR = { 'Équipe Tournante': 'Holploeg', 'Frigo': 'Sorteerfrigo', 'Salle de Découpe': 'Sorteerzaal', 'Emballage': 'Verpakking' };
   function fpShift(t) {
     if (t && typeof t === 'object' && t.kind === 'time') return t.h < 12 ? 'Matin' : 'Après-midi';
     return null;
@@ -969,16 +1165,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const fpHoraire = h => ((h && typeof h === 'object' && h.kind === 'time') ? `${pad(h.h, 2)}:${pad(h.m, 2)}` : (h === null ? 'nan' : pyStr(h)));
   function dateFr(y, m, d) { return { label: `${d} ${MOIS[m - 1]}`, ddmm: `${pad(d, 2)}-${pad(m, 2)}` }; }
 
-  async function buildFeuilles(ExcelJS, XLSX, wbIn, dateLabel, ddmm) {
-    const df = readFeuillesFrame(XLSX, wbIn);
+  async function buildFeuilles(ExcelJS, lignes, dateLabel, ddmm) {
+    const df = feuillesFrame(lignes);
     const excl = FP_NOMS_EXCLUS.map(n => n.toUpperCase());
     const present = df
       .map(r => ({ ...r, Afdeling: reaffecter(r.Naam, r.Afdeling) }))
-      .filter(r => !(typeof r.AfwCode === 'string' && FP_CODES_ABSENCE.includes(r.AfwCode)))
+      .filter(r => !(r.AfwCode !== null && FP_CODES_ABSENCE.includes(pyStr(r.AfwCode))))
       .filter(r => !(typeof r.Naam === 'string' && excl.includes(r.Naam.toUpperCase())))
-      .map(r => ({ ...r, Shift: fpShift(r.Kerntijd), SecteurSimple: simplifySector(r.Afdeling) }))
+      .map(r => {
+        let sec = simplifySector(r.Afdeling);
+        if (typeof sec === 'string' && !FP_SECTEURS_FEUILLES.some(p => sec.startsWith(p))) {
+          const g = getSecteur(r.Afdeling);
+          if (g && !/^\s*mk-/i.test(pyStr(r.Afdeling))) sec = FP_DEPUIS_SECTEUR[g];
+        }
+        return { ...r, Shift: fpShift(r.Kerntijd), SecteurSimple: sec };
+      })
       .filter(r => typeof r.SecteurSimple === 'string' && FP_SECTEURS_FEUILLES.some(p => r.SecteurSimple.startsWith(p)));
 
+    // code jamais vu chez une personne qui finit sur une feuille : on la garde, mais on le signale
+    const codesInconnus = new Map();
+    present.forEach(r => {
+      if (r.AfwCode === null || r.Shift === null) return;
+      const c = pyStr(r.AfwCode), k = `${c}|${pyStr(r.Naam)}`;
+      if (!codesInconnus.has(k)) codesInconnus.set(k, [c, pyStr(r.Naam)]);
+    });
     const secteurs = [...new Set(present.map(r => r.SecteurSimple).filter(s => s !== null))].sort(pyCompare);
     const wb = new ExcelJS.Workbook();
     const headerFill = solid('4472C4', true), matinFill = solid('FFF2CC', true), apremFill = solid('D9EAD3', true);
@@ -1032,7 +1242,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       eq.forEach((emp, i) => motsDuNom(emp.Naam).forEach((mot, j) => { wse.getCell(i + 1, j + 1).value = mot; }));
       equipes.push({ shift, buffer: await wbe.xlsx.writeBuffer(), filename: `Equipe ${libelle} ${ddmm}.xlsx`, count: eq.length });
     }
-    return { feuilles, equipes, recap, dateLabel };
+    return { feuilles, equipes, recap, dateLabel, codesInconnus: [...codesInconnus.values()] };
   }
 
   // ================= Prime accrochage (onglet 4) =================
@@ -1055,48 +1265,29 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const utcDay = (Y, M, D) => Date.UTC(Y, M - 1, D);
   const isoOf = ms => { const d = new Date(ms); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1, 2)}-${pad(d.getUTCDate(), 2)}`; };
   const ddmmOf = (ms, sep) => { const d = new Date(ms); return `${pad(d.getUTCDate(), 2)}${sep}${pad(d.getUTCMonth() + 1, 2)}`; };
-  function datumToDay(v) {
-    if (v && typeof v === 'object' && v.kind === 'datetime') return utcDay(v.Y, v.M, v.D);
-    if (typeof v === 'string') {
-      let m = v.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-      if (m) return utcDay(+m[1], +m[2], +m[3]);
-      m = v.trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
-      if (m) return utcDay(+m[3], +m[2], +m[1]);
-    }
-    return null;
-  }
   const timeSecs = t => (t && typeof t === 'object' && t.kind === 'time') ? t.h * 3600 + t.m * 60 + t.s + t.us / 1e6 : null;
 
-  // Lecture du planning hebdomadaire : une ligne par personne et par jour
-  function parsePrime(XLSX, wb, filename) {
-    const ws = wb.Sheets['Sheet1'];
-    if (!ws) throw new Error("Onglet « Sheet1 » introuvable : ce n'est pas un export Protime.");
-    const rows = sheetRows(XLSX, wb, ws);
-    if (!rows.length) throw new Error('Le planning est vide.');
-    const header = rows[0].map(c => (c.v !== null ? pyStr(c.v).trim() : null));
-    const col = {};
-    for (const name of ['WerknemersNr', 'Naam', 'Kerntijd', 'AfwCode', 'Afdeling', 'Datum']) {
-      const i = header.indexOf(name);
-      if (i < 0) throw new Error(`Colonne « ${name} » introuvable : il faut le planning de la semaine (avec la colonne Datum).`);
-      col[name] = i;
-    }
+  // Lecture du planning hebdomadaire : une ligne par personne et par jour, un ou plusieurs fichiers
+  function parsePrime(lectures) {
     const lignes = [];
     let sansDate = 0;
-    for (let i = 1; i < rows.length; i++) {
-      const r = rows[i];
-      const naam = r[col.Naam].v;
-      if (!naam) continue;
-      const day = datumToDay(r[col.Datum].v);
-      if (day === null) { sansDate++; continue; }
-      const nrRaw = r[col.WerknemersNr].v;
-      const nr = (nrRaw === null || nrRaw === '') ? 'nom:' + pyStr(naam) : pyStr(nrRaw);
-      lignes.push({ nr, naam: pyStr(naam), kerntijd: r[col.Kerntijd].v, afw: r[col.AfwCode].v,
-        afdeling: reaffecter(naam, r[col.Afdeling].v), day });
+    for (const lecture of lectures) {
+      if (!lecture.onglets.some(o => !o.manquantes.includes('Datum')) && !lecture.lignes.some(l => l.jour)) {
+        throw new Error(`${lecture.fichier} : pas de colonne Datum ni d'onglet par jour, impossible de savoir à quel jour correspond chaque ligne.`);
+      }
+      for (const l of lecture.lignes) {
+        if (l.day === null && !l.jour) { sansDate++; continue; }
+        const nr = (l.nr === null) ? 'nom:' + pyStr(l.naam) : pyStr(l.nr);
+        lignes.push({ nr, naam: pyStr(l.naam), kerntijd: l.kerntijd || l.kerntijdRaw, afw: l.afwcode,
+          afdeling: reaffecter(l.naam, l.afdeling), day: l.day, jour: l.jour });
+      }
     }
-    if (!lignes.length) throw new Error('Aucune ligne datée dans le planning.');
-    const minDay = Math.min(...lignes.map(l => l.day));
-    const wd = (new Date(minDay).getUTCDay() + 6) % 7;          // 0 = lundi
-    const lundi = minDay - wd * 86400000;                        // lundi de la semaine de la plus petite date
+    if (!lignes.some(l => l.day !== null)) throw new Error('Aucune ligne datée dans le planning : il faut la colonne Datum.');
+    // semaine retenue : celle qui a le plus de lignes (la plus ancienne en cas d'egalite)
+    const parSemaine = new Map();
+    lignes.forEach(l => { if (l.day !== null) { const lu = lundiDe(l.day); parSemaine.set(lu, (parSemaine.get(lu) || 0) + 1); } });
+    const lundi = [...parSemaine].sort((x, y) => y[1] - x[1] || x[0] - y[0])[0][0];
+    lignes.forEach(l => { if (l.day === null) l.day = lundi + JOURS_SEMAINE.indexOf(l.jour) * 86400000; });
     let horsSemaine = 0;
     const jours = JOURS_FR.map((nom, i) => {
       const ms = lundi + i * 86400000;
@@ -1105,7 +1296,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     for (const l of lignes) {
       const idx = Math.round((l.day - lundi) / 86400000);
       if (idx < 0 || idx > 4) { horsSemaine++; continue; }
-      if (typeof l.afdeling !== 'string' || !l.afdeling.includes('Holploeg')) continue;
+      if (getSecteur(l.afdeling) !== 'Équipe Tournante') continue;
       const j = jours[idx];
       j.lignes++;
       const code = (l.afw === null || l.afw === undefined) ? '' : pyStr(l.afw).trim();
@@ -1120,10 +1311,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     // export avant la fin de semaine : horodatage dans le nom du fichier
     let exportInfo = null;
-    const m = String(filename || '').match(/(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})?/);
-    if (m) {
-      const exportDay = utcDay(+m[1], +m[2], +m[3]);
-      exportInfo = { iso: isoOf(exportDay), heure: `${m[4]}:${m[5]}` };
+    const stamps = lectures.map(x => x.stamp).filter(Boolean).sort((x, y) => y.ms - x.ms);
+    if (stamps.length) {
+      const exportDay = Date.parse(stamps[0].iso + 'T00:00:00Z');
+      exportInfo = { iso: stamps[0].iso, heure: stamps[0].heure };
       jours.forEach(j => { j.previsionnel = Date.parse(j.iso + 'T00:00:00Z') > exportDay; });
     } else jours.forEach(j => { j.previsionnel = false; });
     const personnes = new Map();
@@ -1234,6 +1425,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   return {
     JOURS, TARGETS, KEY_PERSONS, FP_CODES_ABSENCE, FP_NOMS_EXCLUS, MOIS, REAFFECTATIONS,
     readWorkbook, detectJour, parsePlanning, compute, buildInterim, buildVerification, buildFeuilles,
+    lirePlanning, assembler, jourDe, lundiDe, JOURS_SEMAINE, exportStamp,
     dateFr, kstr, pyStr, matchKey, isDateFormat,
     parsePrime, buildPrimeXlsx, primeDecocheParDefaut, PRIME_DECOCHES_PAR_DEFAUT,
   };
@@ -1309,15 +1501,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <table class="mini"><thead><tr><th>Secteur</th><th>Matin</th><th>Après-midi</th></tr></thead><tbody>
     ${['Équipe Tournante', 'Frigo', 'Emballage', 'Salle de Découpe'].map(s => `<tr><td>${s}</td>${['Matin', 'Après-midi'].map(sh => `<td>${E.TARGETS.find(t => t[0] === s && t[1] === sh)[2]}</td>`).join('')}</tr>`).join('')}
     </tbody></table>
-    <p>Horaires Matin : 05:30, 06:00, 06:30, 08:00. Après-midi : 12:01, 13:30, 13:50, 14:41. Tout autre horaire est ignoré au comptage.</p>
+    <p>Horaires Matin : 05:30, 06:00, 06:30, 08:00. Après-midi : 12:01, 13:30, 13:50, 14:41. Tout autre horaire est ignoré au comptage et signalé.</p>
     <p>${E.KEY_PERSONS.length} personnes clés, hors cible en Salle de Découpe et Équipe Tournante : leur absence ne génère pas d'intérim. En Emballage et Frigo elles comptent comme des opérateurs. MK-Verantwoordelijken est exclu du calcul.</p>
     <p>Réaffectation : ${E.REAFFECTATIONS.map(r => r[0]).join(', ')}, inscrite en équipe tournante, compte en salle de découpe.</p>
+    <p>Lecture : tous les onglets qui contiennent un planning sont lus, quelle que soit la position des colonnes (Naam, Kerntijd, Afdeling, AfwCode, Datum ou leurs équivalents français). Le jour de chaque ligne vient de la colonne Datum, sinon du nom de l'onglet, sinon du nom du fichier. Plusieurs fichiers sont fusionnés jour par jour ; une même personne le même jour n'est comptée qu'une fois, et si deux fichiers la décrivent différemment, le plus récent l'emporte.</p>
     <p>Tout code renseigné dans AfwCode (dont ABZ et AIB) vaut absence. Un nom contenant EXTRA ne compte jamais comme présent, même sans code : la personne a déjà une affectation ailleurs ce jour-là.</p>`;
   const rulesFp = `<summary>Règles appliquées</summary>
     <p>Codes absence retirés : ${E.FP_CODES_ABSENCE.join(', ')}.</p>
     <p>Feuilles uniquement pour l'équipe tournante (Holploeg), la salle de découpe (Sorteerzaal, A et B regroupés), l'emballage (Verpakking) et la sortie frigo (Sorteerfrigo).</p>
     <p>Réaffectation : ${E.REAFFECTATIONS.map(r => r[0]).join(', ')}, inscrite en équipe tournante, figure sur la feuille de la salle de découpe.</p>
     <p>Matin si l'horaire est avant 12:00, Après-midi à partir de 12:00.</p>
+    <p>Un fichier qui couvre plusieurs jours : choisis le jour, seules ses lignes sont prises. Un code d'absence absent de la liste ci-dessus laisse la personne sur la feuille et est signalé.</p>
     <p>${E.FP_NOMS_EXCLUS.length} noms n'apparaissent jamais sur les feuilles ni sur les listes d'équipe.</p>`;
   $$('[data-rules="planning"]').forEach(d => { d.innerHTML = rulesPlanning; });
   $('[data-rules="fp"]').innerHTML = rulesFp;
@@ -1331,32 +1525,153 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ---------- Etat ----------
   let uid = 0;
   const store = { interim: [], verif: [], fp: [] };
+  const semaineVoulue = { interim: null, verif: null };
   const results = { interim: null, verif: null, fp: null };
+  const JL = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+  const ddmm = ms => { const d = new Date(ms); return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+  const jourCourt = ms => `${JL[new Date(ms).getUTCDay()].slice(0, 3)}. ${ddmm(ms)}`;
+  const jourLong = ms => `${JL[new Date(ms).getUTCDay()]} ${ddmm(ms)}`;
+  const pl = (n, mot, motPl) => `${n} ${n > 1 ? (motPl || mot + 's') : mot}`;
 
   async function readFile(file) {
     const buf = new Uint8Array(await file.arrayBuffer());
     return E.readWorkbook(window.XLSX, buf);
   }
+  async function lire(file) {
+    const entry = { id: ++uid, name: file.name, lecture: null, error: null, jour: null, fiable: false, confirmed: false, needsDay: false };
+    try { entry.lecture = E.lirePlanning(window.XLSX, await readFile(file), file.name); }
+    catch (e) { entry.error = (e && e.message) ? e.message : 'Fichier illisible : ' + e; }
+    if (entry.lecture && !entry.lecture.lignes.length) entry.error = 'Le planning ne contient aucune ligne avec un nom.';
+    if (entry.lecture && !entry.error && entry.lecture.sansJour > 0) {
+      // aucune date ni onglet par jour : le jour vient du nom du fichier ou d'un choix
+      entry.needsDay = true;
+      const [jour, fiable] = E.detectJour(file.name);
+      entry.jour = jour; entry.fiable = fiable; entry.confirmed = fiable;
+    }
+    return entry;
+  }
   async function addFiles(kind, fileList) {
     if (!libsOk()) return;
     const files = Array.from(fileList).filter(f => /\.(xlsx|xlsm)$/i.test(f.name));
     const skipped = fileList.length - files.length;
-    if (kind === 'fp') { store.fp = []; files.splice(1); }
-    for (const f of files) {
-      const entry = { id: ++uid, name: f.name, wb: null, error: null, jour: null, fiable: false, confirmed: false };
-      try {
-        entry.wb = await readFile(f);
-        if (kind !== 'fp' && !entry.wb.Sheets['Sheet1']) entry.error = "Onglet « Sheet1 » introuvable : ce n'est pas un export Protime.";
-      } catch (e) { entry.error = 'Fichier illisible : ' + (e.message || e); }
-      if (kind !== 'fp') {
-        const [jour, fiable] = E.detectJour(f.name);
-        entry.jour = jour; entry.fiable = fiable; entry.confirmed = fiable;
-      } else {
-        prefillDate(f.name);
-      }
-      store[kind].push(entry);
-    }
+    for (const f of files) store[kind].push(await lire(f));
+    if (kind === 'fp') majJourFp();
     render(kind, skipped ? `${skipped} fichier(s) ignoré(s) : seuls les .xlsx et .xlsm sont lus.` : '');
+  }
+
+  // ---------- Ce que l'outil a compris de chaque fichier ----------
+  function plage(days) {
+    if (!days.length) return '';
+    return days.length === 1 ? jourCourt(days[0]) : `du ${jourCourt(days[0])} au ${jourCourt(days[days.length - 1])}`;
+  }
+  function decrire(f) {
+    const L = f.lecture;
+    const og = L.onglets;
+    const quoi = og.length === 1 ? `onglet « ${og[0].nom} »` : `${og.length} onglets (${og.map(o => o.nom).join(', ')})`;
+    const bits = [`${pl(L.lignes.length, 'ligne')}, ${quoi}`];
+    if (L.days.length) bits.push(plage(L.days));
+    const att = [];
+    const sansCode = og.filter(o => o.manquantes.includes('AfwCode'));
+    if (sansCode.length) att.push(`pas de colonne AfwCode${og.length > 1 ? ` (${sansCode.map(o => o.nom).join(', ')})` : ''} : personne n'y est compté absent`);
+    if (L.ignores.length) att.push(`${L.ignores.length > 1 ? 'onglets' : 'onglet'} ${L.ignores.map(n => `« ${n} »`).join(', ')} sans planning, ignoré${L.ignores.length > 1 ? 's' : ''}`);
+    return `<span>${esc(bits.join(', '))}.</span>` + att.map(t => `<span class="att">${esc(t.charAt(0).toUpperCase() + t.slice(1))}.</span>`).join('');
+  }
+  const okEntries = kind => store[kind].filter(f => !f.error && f.lecture);
+  function lot(kind) {
+    const ok = okEntries(kind);
+    if (!ok.length || ok.some(f => f.needsDay && !f.jour)) return null;
+    return E.assembler(ok.map(f => ({ lecture: f.lecture, jourManuel: f.needsDay ? f.jour : null })), semaineVoulue[kind]);
+  }
+  function renderLecture(kind) {
+    const box = $(`[data-lecture="${kind}"]`);
+    const A = lot(kind);
+    if (!A || okEntries(kind).length === 0) { box.innerHTML = ''; return; }
+    const parts = [];
+    const nf = okEntries(kind).length;
+    if (A.jours.length) {
+      const idx = A.jours.map(j => E.JOURS.indexOf(j));
+      const span = A.semaine !== null
+        ? (A.jours.length === 1 ? jourLong(A.semaine + idx[0] * 86400000) : `du ${jourLong(A.semaine + idx[0] * 86400000)} au ${jourLong(A.semaine + idx[idx.length - 1] * 86400000)}`)
+        : A.jours.join(', ').toLowerCase();
+      parts.push(`<p class="vu">Lu : ${esc(pl(nf, 'fichier'))}, ${esc(pl(A.lignes, 'ligne'))}, ${esc(pl(A.jours.length, 'jour'))} ${esc(span)}.</p>`);
+      parts.push(`<p>${A.jours.map(j => `${j.slice(0, 3).toLowerCase()}. ${A.parJour[j].length}`).join(', ')} lignes.</p>`);
+    } else {
+      parts.push('<p class="vu">Aucune ligne du lundi au vendredi dans la semaine retenue.</p>');
+    }
+    if (A.semaines.length > 1) {
+      parts.push(`<p>Plusieurs semaines dans les fichiers : <select class="day" data-semaine="${kind}" aria-label="Semaine à calculer">${A.semaines.map(w => `<option value="${w.lundi}"${w.lundi === A.semaine ? ' selected' : ''}>semaine du ${ddmm(w.lundi)} (${w.n} lignes)</option>`).join('')}</select></p>`);
+    }
+    const att = A.avis.slice();
+    // presents que les regles ne comptent pas : signales plutot qu'ignores en silence
+    const horsSecteur = new Map(), horsHoraire = new Map();
+    for (const j of A.jours) {
+      const d = E.parsePlanning(A.parJour[j]);
+      d.horsSecteur.forEach(([a, n]) => horsSecteur.set(a, (horsSecteur.get(a) || 0) + n));
+      d.horsHoraire.forEach(h => { const k = `${h.naam} (${h.secteur}, ${h.horaire})`; horsHoraire.set(k, (horsHoraire.get(k) || []).concat(j.slice(0, 3).toLowerCase() + '.')); });
+    }
+    if (horsHoraire.size) att.push(`Horaire non reconnu, non compté : ${[...horsHoraire].map(([k, js]) => `${k} ${js.join(' ')}`).join(' ; ')}.`);
+    const notes = [];
+    if (horsSecteur.size) notes.push(`Secteurs sans cible, non comptés : ${[...horsSecteur].map(([a, n]) => `${a} (${pl(n, 'présence')})`).join(', ')}.`);
+    if (att.length || notes.length) parts.push(`<ul>${att.map(t => `<li class="att">${esc(t)}</li>`).join('')}${notes.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`);
+    box.innerHTML = parts.join('');
+  }
+
+  // ---------- Feuilles de presence : jour choisi parmi les dates lues ----------
+  const fpDays = () => [...new Set(okEntries('fp').flatMap(f => f.lecture.days))].sort((a, b) => a - b);
+  function majJourFp() {
+    const days = fpDays();
+    const sel = $('#fp-jour'), input = $('#fp-date'), note = $('#fp-date-note');
+    if (days.length) {
+      const avant = sel.value;
+      sel.innerHTML = (days.length > 1 ? '<option value="">Jour ?</option>' : '') + days.map(d => `<option value="${d}">${jourLong(d)}</option>`).join('');
+      if (days.map(String).includes(avant)) sel.value = avant;
+      sel.hidden = false; input.hidden = true;
+      $('#fp-date-label').setAttribute('for', 'fp-jour');
+      note.classList.remove('warn');
+      note.textContent = days.length > 1
+        ? `Le planning couvre ${days.length} jours : choisis celui des feuilles. Date lue dans la colonne Datum.`
+        : 'Date lue dans la colonne Datum. Elle s\'imprime en haut de chaque feuille et nomme les fichiers.';
+    } else {
+      sel.hidden = true; sel.innerHTML = ''; input.hidden = false;
+      $('#fp-date-label').setAttribute('for', 'fp-date');
+      const f = okEntries('fp')[0];
+      if (f && !input.value) prefillDate(f.name);
+      else if (!f) { note.textContent = "Elle s'imprime en haut de chaque feuille et nomme les fichiers."; note.classList.remove('warn'); }
+    }
+  }
+  function fpChoix() {           // jour choisi, en ms UTC, ou null
+    const sel = $('#fp-jour');
+    if (!sel.hidden) return sel.value ? +sel.value : null;
+    const v = $('#fp-date').value;
+    if (!v) return null;
+    const [y, m, d] = v.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  }
+  function fpLot() {
+    const ms = fpChoix();
+    const ok = okEntries('fp');
+    if (ms === null || !ok.length) return null;
+    const jour = E.jourDe(ms);
+    if (!E.JOURS.includes(jour)) {
+      // week-end : l'assemblage ne garde que lundi-vendredi, on prend les lignes de ce jour telles quelles
+      const lignes = ok.flatMap(f => f.lecture.lignes.filter(l => (l.day !== null ? l.day === ms : (!l.jour || l.jour === jour))));
+      return { ms, jour, A: { avis: [] }, lignes };
+    }
+    const A = E.assembler(ok.map(f => ({ lecture: f.lecture, jourManuel: jour })), E.lundiDe(ms));
+    return { ms, jour, A, lignes: A.parJour[jour] || [] };
+  }
+  function renderLectureFp() {
+    const box = $('[data-lecture="fp"]');
+    const ok = okEntries('fp');
+    if (!ok.length) { box.innerHTML = ''; return; }
+    const L = fpLot();
+    const parts = [`<p class="vu">Lu : ${esc(pl(ok.length, 'fichier'))}, ${esc(pl(ok.reduce((s, f) => s + f.lecture.lignes.length, 0), 'ligne'))}${fpDays().length ? ', ' + esc(plage(fpDays())) : ''}.</p>`];
+    if (L) {
+      parts.push(`<p>${esc(pl(L.lignes.length, 'ligne'))} pour le ${esc(jourLong(L.ms))}.</p>`);
+      const att = L.A.avis.filter(t => !/autre semaine/.test(t));
+      if (att.length) parts.push(`<ul>${att.map(t => `<li class="att">${esc(t)}</li>`).join('')}</ul>`);
+    }
+    box.innerHTML = parts.join('');
   }
 
   function prefillDate(name) {
@@ -1379,16 +1694,20 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (!list.length) return ['empty'];
     if (list.some(f => f.error)) out.push('Retire les fichiers en erreur avant de lancer le calcul.');
     if (kind === 'fp') {
-      if (!$('#fp-date').value) out.push('Indique la date du planning.');
+      if (fpChoix() === null) out.push($('#fp-jour').hidden ? 'Indique la date du planning.' : 'Choisis le jour des feuilles.');
+      else if (!list.some(f => f.error)) {
+        const L = fpLot();
+        if (L && !L.lignes.length) out.push(`Aucune ligne pour le ${jourLong(L.ms)} dans les fichiers déposés.`);
+      }
       return out;
     }
-    if (list.length > 5) out.push('5 fichiers maximum, un par jour du lundi au vendredi.');
-    const ok = list.filter(f => !f.error);
-    if (ok.some(f => !f.jour)) out.push('Choisis le jour de chaque fichier.');
-    else if (ok.some(f => !f.confirmed)) out.push('Confirme les jours déduits d\'une date : cette date est celle de l\'export, pas forcément celle du planning.');
-    const days = ok.filter(f => f.jour).map(f => f.jour);
-    const dup = days.filter((d, i) => days.indexOf(d) !== i);
-    if (dup.length) out.push(`Deux fichiers pour le même jour (${[...new Set(dup)].join(', ')}) : garde-en un seul.`);
+    const ok = okEntries(kind);
+    if (ok.some(f => f.needsDay && !f.jour)) out.push('Choisis le jour des fichiers sans date.');
+    else if (ok.some(f => f.needsDay && !f.confirmed)) out.push('Confirme les jours déduits d\'une date : cette date est celle de l\'export, pas forcément celle du planning.');
+    else if (!out.length) {
+      const A = lot(kind);
+      if (A && !A.lignes) out.push('Aucune ligne exploitable du lundi au vendredi.');
+    }
     return out;
   }
 
@@ -1397,27 +1716,28 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     ul.innerHTML = store[kind].map(f => {
       let cls = 'file', state = '';
       if (f.error) { cls += ' bad'; state = `<div class="fstate err">${esc(f.error)}</div>`; }
-      else if (kind !== 'fp') {
+      else if (f.needsDay && kind !== 'fp') {
         const opts = ['<option value="">Jour ?</option>'].concat(E.JOURS.map(j => `<option${f.jour === j ? ' selected' : ''}>${j}</option>`)).join('');
         const sel = `<select class="day" data-day="${f.id}" aria-label="Jour du fichier ${esc(f.name)}">${opts}</select>`;
         let note;
-        if (!f.jour) { cls += ' need'; note = 'Jour non reconnu dans le nom : choisis-le.'; }
-        else if (f.fiable) note = 'Jour lu dans le nom du fichier.';
-        else if (!f.confirmed) { cls += ' need'; note = `Déduit de la date d'export. <button class="confirm" data-confirm="${f.id}">Oui, c'est ${esc(f.jour.toLowerCase())}</button>`; }
+        if (!f.jour) { cls += ' need'; note = 'Pas de colonne Datum ni de jour dans le nom : choisis-le.'; }
+        else if (f.fiable) note = 'Pas de colonne Datum : jour lu dans le nom du fichier.';
+        else if (!f.confirmed) { cls += ' need'; note = `Pas de colonne Datum : jour déduit de la date d'export. <button class="confirm" data-confirm="${f.id}">Oui, c'est ${esc(f.jour.toLowerCase())}</button>`; }
         else note = 'Jour confirmé.';
-        state = `<div class="fstate">${sel}<span>${note}</span></div>`;
+        state = `<div class="fstate">${decrire(f)}</div><div class="fstate">${sel}<span>${note}</span></div>`;
       } else {
-        state = '<div class="fstate">Planning prêt.</div>';
+        state = `<div class="fstate">${decrire(f)}</div>`;
       }
       return `<li class="${cls}"><span class="fname">${esc(f.name)}</span><button class="x" data-rm="${f.id}" aria-label="Retirer ${esc(f.name)}">×</button>${state}</li>`;
     }).join('');
+    if (kind === 'fp') renderLectureFp(); else renderLecture(kind);
     const probs = problems(kind);
     const btn = $(`[data-go="${kind}"]`);
     btn.disabled = probs.length > 0 || !libsOk();
     const msg = $(`[data-msg="${kind}"]`);
     const shown = probs.filter(p => p !== 'empty');
     msg.textContent = [extraMsg || ''].concat(shown).filter(Boolean).join(' ');
-    msg.classList.toggle('err', shown.some(p => /erreur|maximum|même jour/.test(p)));
+    msg.classList.toggle('err', shown.some(p => /erreur|Aucune ligne/.test(p)));
   }
 
   // ---------- Evenements fichiers ----------
@@ -1435,7 +1755,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const ul = $(`[data-list="${kind}"]`);
     ul.addEventListener('click', e => {
       const rm = e.target.closest('[data-rm]');
-      if (rm) { store[kind] = store[kind].filter(f => f.id !== +rm.dataset.rm); render(kind); return; }
+      if (rm) { store[kind] = store[kind].filter(f => f.id !== +rm.dataset.rm); if (kind === 'fp') majJourFp(); render(kind); return; }
       const cf = e.target.closest('[data-confirm]');
       if (cf) { const f = store[kind].find(x => x.id === +cf.dataset.confirm); if (f) f.confirmed = true; render(kind); }
     });
@@ -1446,6 +1766,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       if (f) { f.jour = s.value || null; f.confirmed = !!s.value; }
       render(kind);
     });
+    if (kind !== 'fp') $(`[data-lecture="${kind}"]`).addEventListener('change', e => {
+      const s = e.target.closest('[data-semaine]');
+      if (s) { semaineVoulue[kind] = +s.value; render(kind); }
+    });
   });
   $('#fp-date').addEventListener('input', () => {
     const note = $('#fp-date-note');
@@ -1453,11 +1777,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     note.textContent = "Elle s'imprime en haut de chaque feuille et nomme les fichiers.";
     render('fp');
   });
+  $('#fp-jour').addEventListener('change', () => render('fp'));
 
   // ---------- Calculs ----------
   function dataByDay(kind) {
+    const A = lot(kind);
     const data = {};
-    for (const f of store[kind]) data[f.jour] = E.parsePlanning(window.XLSX, f.wb);
+    for (const j of A.jours) data[j] = E.parsePlanning(A.parJour[j]);
     return data;
   }
   const ABBR = { Lundi: 'lun.', Mardi: 'mar.', Mercredi: 'mer.', Jeudi: 'jeu.', Vendredi: 'ven.' };
@@ -1563,16 +1889,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   async function runFp() {
-    const f = store.fp[0];
-    const [y, m, d] = $('#fp-date').value.split('-').map(Number);
-    const { label, ddmm } = E.dateFr(y, m, d);
-    const r = await E.buildFeuilles(window.ExcelJS, window.XLSX, f.wb, label, ddmm);
+    const L = fpLot();
+    const d = new Date(L.ms);
+    const { label, ddmm: dd } = E.dateFr(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+    const r = await E.buildFeuilles(window.ExcelJS, L.lignes, label, dd);
     const total = r.recap.reduce((s, x) => s + x.count, 0);
     const out = $('[data-out="fp"]');
     const files = [r.feuilles].concat(r.equipes);
     out.innerHTML = `
       <div class="verdict"><span class="big">${r.recap.length}</span><span class="what">feuille${r.recap.length > 1 ? 's' : ''} pour le ${esc(label)}</span></div>
       <p class="sub">${total} personnes réparties. Listes d'équipe : ${r.equipes.map(e => `${e.shift.toLowerCase()} ${e.count}`).join(', ')}.</p>
+      ${r.codesInconnus.length ? `<p class="sub" style="color:var(--alert-ink)">Code d'absence hors liste, personne${r.codesInconnus.length > 1 ? 's' : ''} laissée${r.codesInconnus.length > 1 ? 's' : ''} sur les feuilles : ${esc(r.codesInconnus.map(([c, n]) => `${n} (${c})`).join(', '))}. À vérifier.</p>` : ''}
       <ul class="sheets">${r.recap.map(x => `<li><span><span class="s-name">${esc(x.secteur)}</span><span class="s-shift">${esc(x.shift)}</span></span><span class="s-n">${x.count}</span></li>`).join('')}</ul>
       <div class="dl-list">
         ${dlButton('Feuilles de présence', r.feuilles.filename)}
@@ -1590,7 +1917,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   function memSave(m) { try { localStorage.setItem(MEM_KEY, JSON.stringify(m)); return true; } catch (e) { return false; } }
   let mem = memLoad();
-  const prime = { file: null, model: null, coche: new Map(), nouveau: new Set(), error: null };
+  const prime = { entries: [], model: null, coche: new Map(), nouveau: new Set(), error: null };
   const JOURS_LONG = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const frDate = iso => { const d = new Date(iso + 'T00:00:00Z'); return `${JOURS_LONG[d.getUTCDay()]} ${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
   const hhmm = t => (t && t.kind === 'time') ? `${t.h}:${String(t.m).padStart(2, '0')}` : '—';
@@ -1602,34 +1929,43 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       <p>${known} personne${known > 1 ? 's' : ''} déjà vérifiée${known > 1 ? 's' : ''} sur ce poste. La mémoire est gardée dans ce navigateur.</p>
       ${off.length ? `<ul class="mem-list">${off.map(([nr, p]) => `<li><span>${esc(p.nom)}</span><button class="small-btn" data-forget="${esc(nr)}">Oublier</button></li>`).join('')}</ul>` : ''}`;
   }
-  async function loadPrime(fileList) {
-    if (!libsOk()) return;
-    const f = Array.from(fileList).find(x => /\.(xlsx|xlsm)$/i.test(x.name));
-    if (!f) { $('[data-msg="prime"]').textContent = 'Seuls les fichiers .xlsx et .xlsm sont lus.'; return; }
-    prime.file = f.name; prime.model = null; prime.error = null;
+  // recalcule la semaine a partir de tous les fichiers deposes (fixes + interims, jour ou semaine)
+  function majPrime() {
+    const ok = prime.entries.filter(f => !f.error && f.lecture);
+    prime.model = null; prime.error = null;
+    if (!ok.length) return;
+    const avant = prime.coche;
     try {
-      const wb = await readFile(f);
-      prime.model = E.parsePrime(window.XLSX, wb, f.name);
+      prime.model = E.parsePrime(ok.map(f => f.lecture));
       prime.coche = new Map(); prime.nouveau = new Set();
       for (const [nr, nom] of prime.model.personnes) {
-        if (mem.personnes[nr]) prime.coche.set(nr, !!mem.personnes[nr].coche);
+        if (avant.has(nr)) prime.coche.set(nr, avant.get(nr));
+        else if (mem.personnes[nr]) prime.coche.set(nr, !!mem.personnes[nr].coche);
         else { prime.coche.set(nr, !E.primeDecocheParDefaut(nom)); prime.nouveau.add(nr); }
       }
     } catch (e) { prime.error = e.message || String(e); }
+  }
+  async function loadPrime(fileList) {
+    if (!libsOk()) return;
+    const files = Array.from(fileList).filter(x => /\.(xlsx|xlsm)$/i.test(x.name));
+    const skipped = fileList.length - files.length;
+    for (const f of files) prime.entries.push(await lire(f));
+    majPrime();
     renderPrime();
+    if (skipped) $('[data-msg="prime"]').textContent = `${skipped} fichier(s) ignoré(s) : seuls les .xlsx et .xlsm sont lus.`;
     if (prime.model && window.matchMedia('(max-width: 860px)').matches) {
       $('[data-out="prime"]').scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     }
   }
   function renderPrime() {
     const ul = $('[data-list="prime"]');
-    ul.innerHTML = prime.file ? `<li class="file${prime.error ? ' bad' : ''}"><span class="fname">${esc(prime.file)}</span><button class="x" data-rm-prime aria-label="Retirer ${esc(prime.file)}">×</button>${prime.error ? `<div class="fstate err">${esc(prime.error)}</div>` : '<div class="fstate">Planning de la semaine lu.</div>'}</li>` : '';
-    const msg = $('[data-msg="prime"]'); msg.textContent = ''; msg.classList.remove('err');
+    ul.innerHTML = prime.entries.map(f => `<li class="file${f.error ? ' bad' : ''}"><span class="fname">${esc(f.name)}</span><button class="x" data-rm-prime="${f.id}" aria-label="Retirer ${esc(f.name)}">×</button>${f.error ? `<div class="fstate err">${esc(f.error)}</div>` : `<div class="fstate">${decrire(f)}</div>`}</li>`).join('');
+    const msg = $('[data-msg="prime"]'); msg.textContent = prime.error || ''; msg.classList.toggle('err', !!prime.error);
     renderMemoire();
     const out = $('[data-out="prime"]');
     const m = prime.model;
     if (!m) {
-      out.innerHTML = '<div class="empty"><strong>Aucune semaine chargée</strong>Dépose le planning Protime de la semaine : les dates sont lues dans la colonne Datum.</div>';
+      out.innerHTML = '<div class="empty"><strong>Aucune semaine chargée</strong>Dépose le planning de la semaine : les dates sont lues dans la colonne Datum.</div>';
       return;
     }
     const ok = nr => prime.coche.get(nr) !== false;
@@ -1701,7 +2037,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   });
   $('[data-input="prime"]').addEventListener('change', e => { loadPrime(e.target.files); e.target.value = ''; });
   $('[data-list="prime"]').addEventListener('click', e => {
-    if (e.target.closest('[data-rm-prime]')) { prime.file = null; prime.model = null; prime.error = null; renderPrime(); }
+    const b = e.target.closest('[data-rm-prime]');
+    if (b) { prime.entries = prime.entries.filter(f => f.id !== +b.dataset.rmPrime); majPrime(); renderPrime(); }
   });
   renderPrime();
 
