@@ -506,7 +506,10 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   ];
 
   // ================= CONFIG : copie exacte de feuilles-presence/SKILL.md =================
-  const FP_CODES_ABSENCE = ['AZ', 'AZN', 'AAO', '*WV1', '*AV1', '*ELB1', 'AKV', 'ARE', 'AOV', 'AVA', 'APT', 'ALd', 'BZZA', '*VF1', 'AIA', 'ABZ', 'AIB'];
+  const FP_CODES_ABSENCE = ['AZ', 'AZN', 'AAO', '*WV1', '*AV1', '*ELB1', 'AKV', 'ARE', 'AOV', 'AVA', 'APT', 'ALd', 'BZZA', '*VF1', 'AIA', 'ABZ', 'AIB', 'ZK', 'AZV'];
+  // Personnes cles (KEY_PERSONS, Eric De Wiest compris) : jamais sur les listes d'equipe ;
+  // jamais sur les feuilles, sauf le technicien et les formatrices de la salle de decoupe
+  const FP_CLES_SUR_FEUILLES_SEULEMENT = ['SOAD BENSAID', 'YANIS VERMEERSCH', 'LAURENCE CLYNCKEMAILLIE', 'HUBERT LYSIAK'];
   const FP_NOMS_EXCLUS = [
     'VERMEEREN SEBASTIEN', 'RUBRECHT NICOLAS', 'GUEHAM AKIM', 'VILAIN FLORA', 'GRUSON SONIA',
     'VANDAMME KIMBERLEY', 'BELLEVERGUE CLAUDINE', 'CARETTE CINDY', 'DESCAMPS MAXIME', 'HANRIO MAXIME',
@@ -894,7 +897,19 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
   const kstr = (s, sh) => s + '|' + sh;
   // lignes : sortie de lirePlanning (une ligne par personne et par jour, deja filtree sur le jour)
-  function parsePlanning(lignes) {
+  // Doublons (24/10/2026) : une personne sur plusieurs lignes le meme jour (meme numero,
+  // a defaut memes mots du nom). Une de ses lignes porte un code : on garde une seule ligne
+  // d'absence (elle compte absente, une cle garde son alerte). Sinon : une seule ligne gardee.
+  function dedoublonner(lignes) {
+    const pid = l => (l.nr !== null && l.nr !== undefined && pyStr(l.nr).trim() !== '') ? 'nr:' + pyStr(l.nr).trim() : 'nom:' + [...nameTokens(l.naam)].sort().join(' ');
+    const groupes = new Map();
+    lignes.forEach(l => { if (!l.naam) return; const p = pid(l); if (!groupes.has(p)) groupes.set(p, []); groupes.get(p).push(l); });
+    const garde = new Set();
+    for (const ls of groupes.values()) garde.add(ls.find(l => l.afwcode) || ls[0]);
+    return lignes.filter(l => !l.naam || garde.has(l));
+  }
+  function parsePlanning(lignesBrutes) {
+    const lignes = dedoublonner(lignesBrutes);
     const presents = {}, keySlots = {}, keysFound = {};
     const horsHoraire = [], horsSecteur = new Map();
     for (const l of lignes) {
@@ -1136,7 +1151,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   const pdv = v => (v === null || v === undefined) ? null : (typeof v === 'string' && PD_NA.has(v) ? null : v);
   function feuillesFrame(lignes) {
     return lignes.map(l => ({
-      Naam: pdv(l.naam), Kerntijd: l.kerntijd || pdv(l.kerntijdRaw),
+      Nr: pdv(l.nr), Naam: pdv(l.naam), Kerntijd: l.kerntijd || pdv(l.kerntijdRaw),
       AfwCode: pdv(l.afwcode), Afdeling: pdv(l.afdeling),
     }));
   }
@@ -1166,12 +1181,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function dateFr(y, m, d) { return { label: `${d} ${MOIS[m - 1]}`, ddmm: `${pad(d, 2)}-${pad(m, 2)}` }; }
 
   async function buildFeuilles(ExcelJS, lignes, dateLabel, ddmm) {
-    const df = feuillesFrame(lignes);
+    const brut = feuillesFrame(lignes);
+    // Doublons : une personne sur plusieurs lignes (meme WerknemersNr, a defaut meme nom).
+    // Une ligne avec un code absence (maladie ou autre) : toutes ses lignes sont retirees.
+    // Sinon une seule ligne est gardee (la premiere).
+    const idPers = r => (r.Nr !== null && pyStr(r.Nr).trim() !== '') ? 'nr:' + pyStr(r.Nr).trim() : 'nom:' + (r.Naam === null ? '' : pyStr(r.Naam).trim().toUpperCase());
+    const estAbsent = r => r.AfwCode !== null && FP_CODES_ABSENCE.includes(pyStr(r.AfwCode));
+    const nbLignes = new Map();
+    brut.forEach(r => { const id = idPers(r); nbLignes.set(id, (nbLignes.get(id) || 0) + 1); });
+    const persAbsentes = new Set(brut.filter(estAbsent).map(idPers));
+    const doublonsRetires = new Set(), doublonsGardes = new Set(), vus = new Set();
+    const df = brut.filter(r => {
+      const id = idPers(r);
+      if (nbLignes.get(id) > 1 && r.Naam !== null) (persAbsentes.has(id) ? doublonsRetires : doublonsGardes).add(pyStr(r.Naam));
+      if (persAbsentes.has(id)) return false;
+      if (vus.has(id)) return false;
+      vus.add(id);
+      return true;
+    });
     const excl = FP_NOMS_EXCLUS.map(n => n.toUpperCase());
     const present = df
-      .map(r => ({ ...r, Afdeling: reaffecter(r.Naam, r.Afdeling) }))
+      .map(r => ({ ...r, Afdeling: reaffecter(r.Naam, r.Afdeling), Cle: r.Naam === null ? null : matchKey(r.Naam) }))
       .filter(r => !(r.AfwCode !== null && FP_CODES_ABSENCE.includes(pyStr(r.AfwCode))))
       .filter(r => !(typeof r.Naam === 'string' && excl.includes(r.Naam.toUpperCase())))
+      .filter(r => r.Cle === null || FP_CLES_SUR_FEUILLES_SEULEMENT.includes(r.Cle))
       .map(r => {
         let sec = simplifySector(r.Afdeling);
         if (typeof sec === 'string' && !FP_SECTEURS_FEUILLES.some(p => sec.startsWith(p))) {
@@ -1236,13 +1269,14 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const motsDuNom = nom => (nom === null ? 'nan' : pyStr(nom)).trim().split(/\s+/).filter(Boolean);
     const equipes = [];
     for (const [shift, libelle] of [['Matin', 'Matin'], ['Après-midi', 'Apres-midi']]) {
-      const eq = present.filter(r => r.Shift === shift && estEquipe(r.SecteurSimple));
+      const eq = present.filter(r => r.Cle === null && r.Shift === shift && estEquipe(r.SecteurSimple));
       const wbe = new ExcelJS.Workbook();
       const wse = sheet(wbe, 'Sheet');
       eq.forEach((emp, i) => motsDuNom(emp.Naam).forEach((mot, j) => { wse.getCell(i + 1, j + 1).value = mot; }));
       equipes.push({ shift, buffer: await wbe.xlsx.writeBuffer(), filename: `Equipe ${libelle} ${ddmm}.xlsx`, count: eq.length });
     }
-    return { feuilles, equipes, recap, dateLabel, codesInconnus: [...codesInconnus.values()] };
+    return { feuilles, equipes, recap, dateLabel, codesInconnus: [...codesInconnus.values()],
+      doublonsRetires: [...doublonsRetires].sort(pyCompare), doublonsGardes: [...doublonsGardes].sort(pyCompare) };
   }
 
   // ================= Prime accrochage (onglet 4) =================
@@ -1423,7 +1457,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   return {
-    JOURS, TARGETS, KEY_PERSONS, FP_CODES_ABSENCE, FP_NOMS_EXCLUS, MOIS, REAFFECTATIONS,
+    JOURS, TARGETS, KEY_PERSONS, FP_CODES_ABSENCE, FP_NOMS_EXCLUS, FP_CLES_SUR_FEUILLES_SEULEMENT, MOIS, REAFFECTATIONS,
     readWorkbook, detectJour, parsePlanning, compute, buildInterim, buildVerification, buildFeuilles,
     lirePlanning, assembler, jourDe, lundiDe, JOURS_SEMAINE, exportStamp,
     dateFr, kstr, pyStr, matchKey, isDateFormat,
@@ -1505,6 +1539,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <p>${E.KEY_PERSONS.length} personnes clés, hors cible en Salle de Découpe et Équipe Tournante : leur absence ne génère pas d'intérim. En Emballage et Frigo elles comptent comme des opérateurs. MK-Verantwoordelijken est exclu du calcul.</p>
     <p>Réaffectation : ${E.REAFFECTATIONS.map(r => r[0]).join(', ')}, inscrite en équipe tournante, compte en salle de découpe.</p>
     <p>Lecture : tous les onglets qui contiennent un planning sont lus, quelle que soit la position des colonnes (Naam, Kerntijd, Afdeling, AfwCode, Datum ou leurs équivalents français). Le jour de chaque ligne vient de la colonne Datum, sinon du nom de l'onglet, sinon du nom du fichier. Plusieurs fichiers sont fusionnés jour par jour ; une même personne le même jour n'est comptée qu'une fois, et si deux fichiers la décrivent différemment, le plus récent l'emporte.</p>
+    <p>Une personne sur plusieurs lignes le même jour (même numéro, à défaut même nom) ne compte qu'une fois. Si une de ses lignes porte un code d'absence, elle compte absente.</p>
     <p>Tout code renseigné dans AfwCode (dont ABZ et AIB) vaut absence. Un nom contenant EXTRA ne compte jamais comme présent, même sans code : la personne a déjà une affectation ailleurs ce jour-là.</p>`;
   const rulesFp = `<summary>Règles appliquées</summary>
     <p>Codes absence retirés : ${E.FP_CODES_ABSENCE.join(', ')}.</p>
@@ -1512,7 +1547,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     <p>Réaffectation : ${E.REAFFECTATIONS.map(r => r[0]).join(', ')}, inscrite en équipe tournante, figure sur la feuille de la salle de découpe.</p>
     <p>Matin si l'horaire est avant 12:00, Après-midi à partir de 12:00.</p>
     <p>Un fichier qui couvre plusieurs jours : choisis le jour, seules ses lignes sont prises. Un code d'absence absent de la liste ci-dessus laisse la personne sur la feuille et est signalé.</p>
-    <p>${E.FP_NOMS_EXCLUS.length} noms n'apparaissent jamais sur les feuilles ni sur les listes d'équipe.</p>`;
+    <p>Une personne présente sur plusieurs lignes (même numéro, à défaut même nom) : si une de ses lignes porte un code d'absence, toutes sont retirées ; sinon une seule est gardée.</p>
+    <p>Les ${E.KEY_PERSONS.length} personnes clés (dont Eric De Wiest) n'apparaissent jamais sur les listes d'équipe. Sur les feuilles, seuls ${E.FP_CLES_SUR_FEUILLES_SEULEMENT.length} figurent : le technicien et les formatrices de la salle de découpe (${E.FP_CLES_SUR_FEUILLES_SEULEMENT.join(', ')}).</p>`;
   $$('[data-rules="planning"]').forEach(d => { d.innerHTML = rulesPlanning; });
   $('[data-rules="fp"]').innerHTML = rulesFp;
   $('[data-rules="prime"]').innerHTML = `<summary>Règles appliquées</summary>
@@ -1899,6 +1935,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     out.innerHTML = `
       <div class="verdict"><span class="big">${r.recap.length}</span><span class="what">feuille${r.recap.length > 1 ? 's' : ''} pour le ${esc(label)}</span></div>
       <p class="sub">${total} personnes réparties. Listes d'équipe : ${r.equipes.map(e => `${e.shift.toLowerCase()} ${e.count}`).join(', ')}.</p>
+      ${r.doublonsRetires.length ? `<p class="sub" style="color:var(--alert-ink)">Doublon avec une absence, retiré partout : ${esc(r.doublonsRetires.join(', '))}.</p>` : ''}
+      ${r.doublonsGardes.length ? `<p class="sub" style="color:var(--alert-ink)">Doublon sans absence, une seule ligne gardée : ${esc(r.doublonsGardes.join(', '))}.</p>` : ''}
       ${r.codesInconnus.length ? `<p class="sub" style="color:var(--alert-ink)">Code d'absence hors liste, personne${r.codesInconnus.length > 1 ? 's' : ''} laissée${r.codesInconnus.length > 1 ? 's' : ''} sur les feuilles : ${esc(r.codesInconnus.map(([c, n]) => `${n} (${c})`).join(', '))}. À vérifier.</p>` : ''}
       <ul class="sheets">${r.recap.map(x => `<li><span><span class="s-name">${esc(x.secteur)}</span><span class="s-shift">${esc(x.shift)}</span></span><span class="s-n">${x.count}</span></li>`).join('')}</ul>
       <div class="dl-list">
